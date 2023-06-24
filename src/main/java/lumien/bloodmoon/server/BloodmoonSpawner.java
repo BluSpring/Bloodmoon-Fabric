@@ -169,8 +169,9 @@ public final class BloodmoonSpawner
 												}
 
 												entityliving.absMoveTo((double) f, (double) i3, (double) f1, worldServerIn.random.nextFloat() * 360.0F, 0.0F);
-												var canSpawn = LivingEntityEvents.CHECK_SPAWN.invoker().onCheckSpawn(entityliving, worldServerIn, f, i3, f1, null, MobSpawnType.NATURAL);
-												if (canSpawn && (entityliving.checkSpawnObstruction(worldServerIn) && entityliving.checkSpawnRules(worldServerIn, MobSpawnType.NATURAL)))
+												var eventInvoker = LivingEntityEvents.CHECK_SPAWN.invoker();
+												var canSpawn = eventInvoker.onCheckSpawn(entityliving, worldServerIn, f, i3, f1, null, MobSpawnType.NATURAL);
+												if (!canSpawn && (entityliving.checkSpawnObstruction(worldServerIn) && entityliving.checkSpawnRules(worldServerIn, MobSpawnType.NATURAL)))
 												{
 													//if (!net.minecraftforge.event.ForgeEventFactory.doSpecialSpawn(entityliving, worldServerIn, f, l3, f1))
 													//	ientitylivingdata = entityliving.onInitialSpawn(worldServerIn.getDifficultyForLocation(new BlockPos(entityliving)), ientitylivingdata);
