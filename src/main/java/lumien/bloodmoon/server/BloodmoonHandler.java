@@ -69,7 +69,7 @@ public class BloodmoonHandler extends SavedData
 
 					if (time >= 0 && time < 12000)
 					{
-						setBloodmoon(false, world.getServer());
+						setBloodmoon(false, world);
 					}
 				}
 				else
@@ -91,7 +91,7 @@ public class BloodmoonHandler extends SavedData
 						if (forceBloodMoon || Math.random() < BloodmoonConfig.SCHEDULE.CHANCE.get() || (BloodmoonConfig.SCHEDULE.FULLMOON.get() && world.getMoonBrightness() == 1.0F) || (BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0 && nightCounter == 0))
 						{
 							forceBloodMoon = false;
-							setBloodmoon(true, world.getServer());
+							setBloodmoon(true, world);
 
 							if (BloodmoonConfig.GENERAL.SEND_MESSAGE.get())
 							{
@@ -113,11 +113,11 @@ public class BloodmoonHandler extends SavedData
 		}
 	}
 
-	private void setBloodmoon(boolean bloodMoon, MinecraftServer server)
+	private void setBloodmoon(boolean bloodMoon, ServerLevel level)
 	{
 		if (this.bloodMoon != bloodMoon)
 		{
-			PacketHandler.INSTANCE.sendToClientsInWorld(new MessageBloodmoonStatus(bloodMoon), server.overworld());
+			PacketHandler.INSTANCE.sendToClientsInWorld(new MessageBloodmoonStatus(bloodMoon), level);
 			this.setDirty();
 		}
 		this.bloodMoon = bloodMoon;
@@ -163,8 +163,8 @@ public class BloodmoonHandler extends SavedData
 		return forceBloodMoon;
 	}
 
-	public void stop(MinecraftServer server)
+	public void stop(ServerLevel level)
 	{
-		setBloodmoon(false, server);
+		setBloodmoon(false, level);
 	}
 }

@@ -52,7 +52,7 @@ public class Bloodmoon implements ModInitializer
 							.then(
 									Commands.literal("stop")
 											.executes((ctx) -> {
-												BloodmoonHandler.INSTANCE.stop(ctx.getSource().getServer());
+												BloodmoonHandler.INSTANCE.stop(ctx.getSource().getLevel());
 												ctx.getSource().sendSuccess(Component.translatable("text.bloodmoon.stop"), true);
 												return 1;
 											})

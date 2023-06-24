@@ -1,5 +1,6 @@
 package lumien.bloodmoon.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import lumien.bloodmoon.config.BloodmoonConfig;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -7,7 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.Vec3;
-import org.lwjgl.opengl.GL11;
 
 public class ClientBloodmoonHandler implements ClientModInitializer
 {
@@ -51,7 +51,7 @@ public class ClientBloodmoonHandler implements ClientModInitializer
 	{
 		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_MOON.get())
 		{
-			GL11.glColor3f(0.8f, 0, 0);
+			RenderSystem.setShaderColor(0.8f, 0, 0, 1);
 		}
 	}
 
