@@ -3,20 +3,17 @@ package lumien.bloodmoon.server;
 import lumien.bloodmoon.config.BloodmoonConfig;
 import lumien.bloodmoon.network.PacketHandler;
 import lumien.bloodmoon.network.messages.MessageBloodmoonStatus;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.text.Style;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraft.world.EnumDifficulty;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldServer;
-import net.minecraft.world.storage.WorldSavedData;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.saveddata.SavedData;
 
-public class BloodmoonHandler extends WorldSavedData
+public class BloodmoonHandler extends SavedData
 {
 	public static BloodmoonHandler INSTANCE;
 
@@ -29,7 +26,7 @@ public class BloodmoonHandler extends WorldSavedData
 
 	public BloodmoonHandler()
 	{
-		super("Bloodmoon");
+		super();
 		bloodMoonSpawner = new BloodmoonSpawner();
 		bloodMoon = false;
 		forceBloodMoon = false;
@@ -37,80 +34,77 @@ public class BloodmoonHandler extends WorldSavedData
 
 	public BloodmoonHandler(String name)
 	{
-		super("Bloodmoon");
+		super();
 		bloodMoonSpawner = new BloodmoonSpawner();
 		bloodMoon = false;
 		forceBloodMoon = false;
 	}
 
-	public void playerJoinedWorld(EntityJoinWorldEvent event)
+	public void playerJoinedWorld(ServerPlayer player)
 	{
-		if (!event.getWorld().isRemote && event.getEntity() instanceof EntityPlayer)
+		if (!player.level.isClientSide())
 		{
 			if (bloodMoon)
 			{
-				PacketHandler.INSTANCE.sendTo(new MessageBloodmoonStatus(bloodMoon), (EntityPlayerMP) event.getEntity());
+				PacketHandler.INSTANCE.sendToClient(new MessageBloodmoonStatus(bloodMoon), player);
 			}
 		}
 	}
 
-	public void endWorldTick(TickEvent.WorldTickEvent event)
+	public void endWorldTick(ServerLevel world)
 	{
-		if (event.side.isServer() && event.phase == TickEvent.Phase.END)
 		{
-			World world = event.world;
-			if (world.provider.getDimension() == 0)
+			if (!world.dimensionType().hasFixedTime())
 			{
-				int time = (int) (world.getWorldTime() % 24000);
+				int time = (int) (world.getDayTime() % 24000);
 				if (isBloodmoonActive())
 				{
-					if (!BloodmoonConfig.GENERAL.RESPECT_GAMERULE || world.getGameRules().getBoolean("doMobSpawning"))
+					if (!BloodmoonConfig.GENERAL.RESPECT_GAMERULE.get() || world.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING))
 					{
-						for (int i = 0; i < BloodmoonConfig.SPAWNING.SPAWN_SPEED; i++)
+						for (int i = 0; i < BloodmoonConfig.SPAWNING.SPAWN_SPEED.get(); i++)
 						{
-							bloodMoonSpawner.findChunksForSpawning((WorldServer) world, world.getDifficulty() != EnumDifficulty.PEACEFUL, false, false);
+							bloodMoonSpawner.findChunksForSpawning(world, world.getDifficulty() != Difficulty.PEACEFUL, false, false);
 						}
 					}
 
 					if (time >= 0 && time < 12000)
 					{
-						setBloodmoon(false);
+						setBloodmoon(false, world.getServer());
 					}
 				}
 				else
 				{
 					if (time == 12000)
 					{
-						if (BloodmoonConfig.SCHEDULE.NTH_NIGHT != 0)
+						if (BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0)
 						{
 							nightCounter--;
 
 							if (nightCounter < 0)
 							{
-								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT;
+								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT.get();
 							}
 
-							this.markDirty();
+							this.setDirty();
 						}
 
-						if (forceBloodMoon || Math.random() < BloodmoonConfig.SCHEDULE.CHANCE || (BloodmoonConfig.SCHEDULE.FULLMOON && world.getCurrentMoonPhaseFactor() == 1.0F) || (BloodmoonConfig.SCHEDULE.NTH_NIGHT != 0 && nightCounter == 0))
+						if (forceBloodMoon || Math.random() < BloodmoonConfig.SCHEDULE.CHANCE.get() || (BloodmoonConfig.SCHEDULE.FULLMOON.get() && world.getMoonBrightness() == 1.0F) || (BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0 && nightCounter == 0))
 						{
 							forceBloodMoon = false;
-							setBloodmoon(true);
+							setBloodmoon(true, world.getServer());
 
-							if (BloodmoonConfig.GENERAL.SEND_MESSAGE)
+							if (BloodmoonConfig.GENERAL.SEND_MESSAGE.get())
 							{
-								for (Object object : world.playerEntities)
+								for (ServerPlayer player : world.players())
 								{
-									EntityPlayer player = (EntityPlayer) object;
-									player.sendMessage(new TextComponentTranslation("text.bloodmoon.notify", new Object[0]).setStyle(new Style().setColor(TextFormatting.RED)));
+									player.sendSystemMessage(Component.translatable("text.bloodmoon.notify", new Object[0]).withStyle(ChatFormatting.RED), true);
 								}
 							}
 
-							if (nightCounter == 0 && BloodmoonConfig.SCHEDULE.NTH_NIGHT != 0)
+							if (nightCounter == 0 && BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0)
 							{
-								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT;
-								this.markDirty();
+								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT.get();
+								this.setDirty();
 							}
 						}
 					}
@@ -119,25 +113,25 @@ public class BloodmoonHandler extends WorldSavedData
 		}
 	}
 
-	private void setBloodmoon(boolean bloodMoon)
+	private void setBloodmoon(boolean bloodMoon, MinecraftServer server)
 	{
 		if (this.bloodMoon != bloodMoon)
 		{
-			PacketHandler.INSTANCE.sendToDimension(new MessageBloodmoonStatus(bloodMoon), 0);
-			this.markDirty();
+			PacketHandler.INSTANCE.sendToClientsInWorld(new MessageBloodmoonStatus(bloodMoon), server.overworld());
+			this.setDirty();
 		}
 		this.bloodMoon = bloodMoon;
 	}
 
-	public void updateClients()
+	public void updateClients(MinecraftServer server)
 	{
-		PacketHandler.INSTANCE.sendToDimension(new MessageBloodmoonStatus(bloodMoon), 0);
+		PacketHandler.INSTANCE.sendToClientsInWorld(new MessageBloodmoonStatus(bloodMoon), server.overworld());
 	}
 
 	public void force()
 	{
 		forceBloodMoon = true;
-		this.markDirty();
+		this.setDirty();
 	}
 
 	public boolean isBloodmoonActive()
@@ -145,20 +139,21 @@ public class BloodmoonHandler extends WorldSavedData
 		return bloodMoon;
 	}
 
-	@Override
-	public void readFromNBT(NBTTagCompound nbt)
+	public static BloodmoonHandler load(CompoundTag nbt)
 	{
-		this.bloodMoon = nbt.getBoolean("bloodMoon");
-		this.forceBloodMoon = nbt.getBoolean("forceBloodMoon");
-		this.nightCounter = nbt.getInteger("nightCounter");
+		var handler = new BloodmoonHandler();
+		handler.bloodMoon = nbt.getBoolean("bloodMoon");
+		handler.forceBloodMoon = nbt.getBoolean("forceBloodMoon");
+		handler.nightCounter = nbt.getInt("nightCounter");
+		return handler;
 	}
 
 	@Override
-	public NBTTagCompound writeToNBT(NBTTagCompound nbt)
+	public CompoundTag save(CompoundTag nbt)
 	{
-		nbt.setBoolean("bloodMoon", bloodMoon);
-		nbt.setBoolean("forceBloodMoon", forceBloodMoon);
-		nbt.setInteger("nightCounter", nightCounter);
+		nbt.putBoolean("bloodMoon", bloodMoon);
+		nbt.putBoolean("forceBloodMoon", forceBloodMoon);
+		nbt.putInt("nightCounter", nightCounter);
 
 		return nbt;
 	}
@@ -168,8 +163,8 @@ public class BloodmoonHandler extends WorldSavedData
 		return forceBloodMoon;
 	}
 
-	public void stop()
+	public void stop(MinecraftServer server)
 	{
-		setBloodmoon(false);
+		setBloodmoon(false, server);
 	}
 }

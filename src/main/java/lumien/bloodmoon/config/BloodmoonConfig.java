@@ -1,129 +1,146 @@
 package lumien.bloodmoon.config;
 
-import java.util.Arrays;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EntityType;
+import net.minecraftforge.api.ModLoadingContext;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
+
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
-import lumien.bloodmoon.Bloodmoon;
-import lumien.bloodmoon.lib.Reference;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityList;
-import net.minecraftforge.common.config.Config;
-import net.minecraftforge.common.config.Config.Comment;
-import net.minecraftforge.common.config.Config.Name;
-import net.minecraftforge.common.config.Config.Type;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.common.config.Property;
-import net.minecraftforge.fml.client.event.ConfigChangedEvent.OnConfigChangedEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.registry.EntityRegistry;
-import net.minecraftforge.fml.common.registry.EntityRegistry.EntityRegistration;
-
-@Config(modid = Reference.MOD_ID, category = "bloodmoon")
 public class BloodmoonConfig
 {
-	public static General GENERAL = new General();
+	private static ModConfig config;
+	private static ForgeConfigSpec.Builder builder;
+	public static General GENERAL;
 	
 	public static class General
 	{
-		@Name(value = "NoSleep")
-		@Comment(value = { "Whether players are not able to sleep on a bloodmoon" })
-		public boolean NO_SLEEP = true;
+		public ForgeConfigSpec.BooleanValue NO_SLEEP = builder
+				.comment("Whether players are not able to sleep on a bloodmoon")
+				.define("NoSleep", true);
 
-		@Name(value = "Vanish")
-		@Comment(value = { "Whether monsters spawned by a bloodmoon should die at dawn" })
-		public boolean VANISH = false;
+		public ForgeConfigSpec.BooleanValue VANISH = builder
+				.comment("Whether monsters spawned by a bloodmoon should die at dawn")
+				.define("Vanish", false);
 
-		@Name(value = "RespectGamerule")
-		@Comment(value = { "Whether bloodmoons should respect the doMobSpawning gamerule" })
-		public boolean RESPECT_GAMERULE = true;
+		public ForgeConfigSpec.BooleanValue RESPECT_GAMERULE = builder
+				.comment("Whether bloodmoons should respect the doMobSpawning gamerule")
+				.define("RespectGamerule", true);
 
-		@Name(value = "SendMessage")
-		@Comment(value = { "Whether all players in the overworld should receive a message when the bloodmoon starts" })
-		public boolean SEND_MESSAGE = true;
+		public ForgeConfigSpec.BooleanValue SEND_MESSAGE = builder
+				.comment("Whether all players in the overworld should receive a message when the bloodmoon starts")
+				.define("SendMessage", true);
 	}
-	
-	@Name(value = "appearance")
-	public static Appearance APPEARANCE = new Appearance();
+
+	public static Appearance APPEARANCE;
 
 	public static class Appearance
 	{
-		@Name(value = "RedMoon")
-		public boolean RED_MOON = true;
+		public ForgeConfigSpec.BooleanValue RED_MOON = builder
+				.comment()
+				.define("RedMoon", true);
 
-		@Name(value = "RedSky")
-		public boolean RED_SKY = true;
+		public ForgeConfigSpec.BooleanValue RED_SKY = builder
+				.define("RedSky", true);
 
-		@Name(value = "RedLight")
-		public boolean RED_LIGHT = true;
+		public ForgeConfigSpec.BooleanValue RED_LIGHT = builder
+				.define("RedLight", true);
 
-		@Name(value = "BlackFog")
-		public boolean BLACK_FOG = true;
+		// this is a joke
+		private boolean GREEN_LIGHT = false;
+
+		public ForgeConfigSpec.BooleanValue BLACK_FOG = builder
+				.define("BlackFog", true);
 	}
 
-	@Name(value = "schedule")
-	public static Schedule SCHEDULE = new Schedule();
+	public static Schedule SCHEDULE;
 
 	public static class Schedule
 	{
-		@Name(value = "Chance")
-		@Comment(value = { "The chance of a bloodmoon occuring at the beginning of a night (0=Never;1=Every night;0.05=5% of all nights)" })
-		public double CHANCE = 0.05;
+		public ForgeConfigSpec.DoubleValue CHANCE = builder
+				.comment("The chance of a bloodmoon occuring at the beginning of a night (0=Never;1=Every night;0.05=5% of all nights)")
+				.defineInRange("Chance", 0.05, 0.0, 1.0);
 
-		@Name(value = "Fullmoon")
-		@Comment(value = { "Whether there should be a bloodmoon whenever there is a full moon" })
-		public boolean FULLMOON = false;
+		public ForgeConfigSpec.BooleanValue FULLMOON = builder
+				.comment("Whether there should be a bloodmoon whenever there is a full moon")
+				.define("Fullmoon", false);
 
-		@Name(value = "NthNight")
-		@Comment(value = { "Every nth night there will be a bloodmoon (0 disables this, 1 would be every night, 2 every second night)" })
-		public int NTH_NIGHT = 0;
+		public ForgeConfigSpec.IntValue NTH_NIGHT = builder
+				.comment("Every nth night there will be a bloodmoon (0 disables this, 1 would be every night, 2 every second night)")
+				.defineInRange("NthNight", 0, 0, Integer.MAX_VALUE);
 	}
 
-	@Name(value = "spawning")
-	public static Spawning SPAWNING = new Spawning();
+	public static Spawning SPAWNING;
 
 	public static class Spawning
 	{
-		@Name(value = "SpawnSpeed")
-		@Comment(value = { "How much faster enemys spawn on a bloodmoon (0=Vanilla)" })
-		public int SPAWN_SPEED = 4;
+		public ForgeConfigSpec.IntValue SPAWN_SPEED = builder
+				.comment("How much faster enemys spawn on a bloodmoon (0=Vanilla)")
+				.defineInRange("SpawnSpeed", 4, 0, Integer.MAX_VALUE);
 
-		@Name(value = "SpawnLimitMultiplier")
-		@Comment(value = { "With which number should the default entity limit be multiplicated on a blood moon" })
-		public int SPAWN_LIMIT_MULT = 4;
+		public ForgeConfigSpec.IntValue SPAWN_LIMIT_MULT = builder
+				.comment("With which number should the default entity limit be multiplicated on a blood moon")
+				.defineInRange("SpawnLimitMultiplier", 4, 0, Integer.MAX_VALUE);
 
-		@Name(value = "SpawnRange")
-		@Comment(value = { "How close can enemys spawn next to the player on a bloodmoon in blocks? (Vanilla=24)" })
-		public int SPAWN_RANGE = 2;
+		public ForgeConfigSpec.IntValue SPAWN_RANGE = builder
+				.comment("How close can enemys spawn next to the player on a bloodmoon in blocks? (Vanilla=24)")
+				.defineInRange("SpawnRange", 2, 0, Integer.MAX_VALUE);
 
-		@Name(value = "WorldSpawnDistance")
-		@Comment(value = { "How close can enemys spawn next to the World Spawn (Vanilla=24)" })
-		public int SPAWN_DISTANCE = 24;
+		public ForgeConfigSpec.IntValue SPAWN_DISTANCE = builder
+				.comment("How close can enemys spawn next to the World Spawn (Vanilla=24)")
+				.defineInRange("WorldSpawnDistance", 24, 0, Integer.MAX_VALUE);
 
-		@Name(value = "SpawnWhitelist")
-		@Comment(value = { "If this isn't empty only monsters which names are in this list will get spawned by the bloodmoon. (Example: \"Skeleton,Spider\")" })
-		public String[] SPAWN_WHITELIST = new String[0];
-		
-		@Name(value = "SpawnBlacklist")
-		@Comment(value = { "Monsters which names are on this list won't get spawned by the bloodmoon (Has no effect when a whitelist is active). (Example: \"Skeleton,Spider\")" })
-		public String[] SPAWN_BLACKLIST = new String[0];
+		public ForgeConfigSpec.ConfigValue<List<? extends String>> SPAWN_WHITELIST = builder
+				.comment("If this isn't empty only monsters which names are in this list will get spawned by the bloodmoon. (Example: \"minecraft:skeleton,minecraft:spider\")")
+				.defineList("SpawnWhitelist", new ArrayList<>(), (a) -> a instanceof String && ResourceLocation.isValidResourceLocation(a.toString()));
+
+		public ForgeConfigSpec.ConfigValue<List<? extends String>> SPAWN_BLACKLIST = builder
+				.comment("Monsters which names are on this list won't get spawned by the bloodmoon (Has no effect when a whitelist is active). (Example: \"minecraft:skeleton,minecraft:spider\")")
+				.defineList("SpawnBlacklist", new ArrayList<>(), (a) -> a instanceof String && ResourceLocation.isValidResourceLocation(a.toString()));
 	}
 
 	// Cache
 	static HashMap<String, String> classToEntityNameMap = new HashMap<String, String>();
-	
-	public static boolean canSpawn(Class<? extends Entity> entityClass)
+
+	public static void init() {}
+
+	static {
+		builder = new ForgeConfigSpec.Builder();
+
+		builder.push("general");
+		GENERAL = new General();
+		builder.pop();
+
+		builder.push("appearance");
+		APPEARANCE = new Appearance();
+		builder.pop();
+
+		builder.push("schedule");
+		SCHEDULE = new Schedule();
+		builder.pop();
+
+		builder.push("spawning");
+		SPAWNING = new Spawning();
+		builder.pop();
+
+		config = ModLoadingContext.registerConfig("bloodmoon", ModConfig.Type.COMMON, builder.build());
+	}
+
+	public static boolean canSpawn(EntityType<?> entityType)
 	{
-		if (SPAWNING.SPAWN_WHITELIST.length == 0)
+		if (SPAWNING.SPAWN_WHITELIST.get().size() == 0)
 		{
-			if (SPAWNING.SPAWN_BLACKLIST.length == 0)
+			if (SPAWNING.SPAWN_BLACKLIST.get().size() == 0)
 			{
 				return true;
 			}
 			else
 			{
-				String className = entityClass.getName();
+				String className = Registry.ENTITY_TYPE.getKey(entityType).toString();
 				String entityName;
 				
 				if (classToEntityNameMap.containsKey(className))
@@ -132,13 +149,13 @@ public class BloodmoonConfig
 				}
 				else
 				{
-					entityName = getEntityName(entityClass);
+					entityName = getEntityName(entityType);
 					classToEntityNameMap.put(className, entityName);
 				}
 
-				for (int i = 0; i < SPAWNING.SPAWN_BLACKLIST.length; i++)
+				for (int i = 0; i < SPAWNING.SPAWN_BLACKLIST.get().size(); i++)
 				{
-					if (SPAWNING.SPAWN_BLACKLIST[i].equals(entityName))
+					if (SPAWNING.SPAWN_BLACKLIST.get().get(i).equals(entityName))
 					{
 						return false;
 					}
@@ -149,7 +166,7 @@ public class BloodmoonConfig
 		}
 		else
 		{
-			String className = entityClass.getName();
+			String className = Registry.ENTITY_TYPE.getKey(entityType).toString();
 			String entityName;
 			
 			if (classToEntityNameMap.containsKey(className))
@@ -158,13 +175,13 @@ public class BloodmoonConfig
 			}
 			else
 			{
-				entityName = getEntityName(entityClass);
+				entityName = getEntityName(entityType);
 				classToEntityNameMap.put(className, entityName);
 			}
 
-			for (int i = 0; i < SPAWNING.SPAWN_WHITELIST.length; i++)
+			for (int i = 0; i < SPAWNING.SPAWN_WHITELIST.get().size(); i++)
 			{
-				if (SPAWNING.SPAWN_WHITELIST[i].equals(entityName))
+				if (SPAWNING.SPAWN_WHITELIST.get().get(i).equals(entityName))
 				{
 					return true;
 				}
@@ -174,21 +191,8 @@ public class BloodmoonConfig
 		}
 	}
 
-	public static String getEntityName(Class<? extends Entity> entityClass)
+	public static String getEntityName(EntityType<?> entityType)
 	{
-		String entityName = null;
-		entityName = EntityList.getTranslationName(EntityList.getKey(entityClass));
-
-		if (entityName == null)
-		{
-			EntityRegistration registration = EntityRegistry.instance().lookupModSpawn(entityClass, false);
-
-			if (registration != null)
-			{
-				entityName = registration.getEntityName();
-			}
-		}
-
-		return entityName;
+		return Registry.ENTITY_TYPE.getKey(entityType).toString();
 	}
 }

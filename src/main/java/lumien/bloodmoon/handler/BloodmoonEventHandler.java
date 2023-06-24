@@ -1,98 +1,107 @@
 package lumien.bloodmoon.handler;
 
+import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.event.events.common.TickEvent;
+import io.github.fabricators_of_create.porting_lib.event.client.FogEvents;
+import io.github.fabricators_of_create.porting_lib.event.common.LivingEntityEvents;
 import lumien.bloodmoon.Bloodmoon;
 import lumien.bloodmoon.client.ClientBloodmoonHandler;
 import lumien.bloodmoon.config.BloodmoonConfig;
-import lumien.bloodmoon.lib.Reference;
 import lumien.bloodmoon.server.BloodmoonHandler;
-import net.minecraft.entity.player.EntityPlayer.SleepResult;
-import net.minecraft.util.DamageSource;
-import net.minecraft.util.text.Style;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.client.event.EntityViewRenderEvent.FogColors;
-import net.minecraftforge.common.config.ConfigManager;
-import net.minecraftforge.common.config.Config.Type;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.event.entity.living.LivingDropsEvent;
-import net.minecraftforge.event.entity.living.LivingEvent.LivingUpdateEvent;
-import net.minecraftforge.event.entity.player.PlayerSleepInBedEvent;
-import net.minecraftforge.event.world.WorldEvent;
-import net.minecraftforge.fml.client.event.ConfigChangedEvent.OnConfigChangedEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+
+import java.util.Collection;
 
 public class BloodmoonEventHandler
 {
-	@SubscribeEvent
-	public void loadWorld(WorldEvent.Load event)
+	public BloodmoonEventHandler() {
+		ServerWorldEvents.LOAD.register((server, world) -> {
+			loadWorld(world);
+		});
+
+		LivingEntityEvents.DROPS_WITH_LEVEL.register(this::livingDrops);
+		LivingEntityEvents.TICK.register(this::livingUpdate);
+		EntitySleepEvents.ALLOW_SLEEPING.register(this::sleepInBed);
+		PlayerEvent.PLAYER_JOIN.register(this::playerJoinedWorld);
+		TickEvent.SERVER_LEVEL_POST.register(this::endWorldTick);
+
+		if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
+			FogEvents.SET_COLOR.register((data, partialTick) -> {
+				fogColor(data);
+			});
+		}
+	}
+
+	public void loadWorld(ServerLevel world)
 	{
-		if (!event.getWorld().isRemote && event.getWorld().provider.getDimension() == 0)
+		if (!world.isClientSide && !world.dimensionType().hasFixedTime())
 		{
-			BloodmoonHandler.INSTANCE = (BloodmoonHandler) event.getWorld().getMapStorage().getOrLoadData(BloodmoonHandler.class, "Bloodmoon");
+			BloodmoonHandler.INSTANCE = world.getDataStorage().get(BloodmoonHandler::load, "Bloodmoon");
 
 			if (BloodmoonHandler.INSTANCE == null)
 			{
 				BloodmoonHandler.INSTANCE = new BloodmoonHandler();
-				BloodmoonHandler.INSTANCE.markDirty();
+				BloodmoonHandler.INSTANCE.setDirty();
 			}
 
-			event.getWorld().getMapStorage().setData("Bloodmoon", BloodmoonHandler.INSTANCE);
+			world.getDataStorage().set("Bloodmoon", BloodmoonHandler.INSTANCE);
 
-			BloodmoonHandler.INSTANCE.updateClients();
+			BloodmoonHandler.INSTANCE.updateClients(world.getServer());
 		}
 	}
 
-	@SubscribeEvent
-	public void livingDrops(LivingDropsEvent event)
+	public boolean livingDrops(LivingEntity target, DamageSource source, Collection<ItemEntity> drops, int lootingLevel, boolean recentlyHit)
 	{
-		if (!event.getEntityLiving().world.isRemote)
+		if (!target.level.isClientSide)
 		{
-			if (event.getSource() == DamageSource.OUT_OF_WORLD && event.getEntityLiving().getEntityData().getBoolean("bloodmoonSpawned"))
-			{
-				event.setCanceled(true);
-			}
+			return source != DamageSource.OUT_OF_WORLD || !target.getExtraCustomData().getBoolean("bloodmoonSpawned");
 		}
+
+		return true;
 	}
 
-	@SubscribeEvent
-	public void livingUpdate(LivingUpdateEvent event)
+	public void livingUpdate(LivingEntity entity)
 	{
-		if (BloodmoonConfig.GENERAL.VANISH && BloodmoonHandler.INSTANCE != null && event.getEntityLiving().dimension == 0 && !event.getEntityLiving().world.isRemote && !BloodmoonHandler.INSTANCE.isBloodmoonActive() && event.getEntityLiving().world.getTotalWorldTime() % 20 == 0 && Math.random() <= 0.2f)
+		if (BloodmoonConfig.GENERAL.VANISH.get() && BloodmoonHandler.INSTANCE != null && !entity.level.dimensionType().hasFixedTime() && !entity.level.isClientSide && !BloodmoonHandler.INSTANCE.isBloodmoonActive() && entity.level.getGameTime() % 20 == 0 && Math.random() <= 0.2f)
 		{
-			if (event.getEntityLiving().getEntityData().getBoolean("bloodmoonSpawned"))
+			if (entity.getExtraCustomData().getBoolean("bloodmoonSpawned"))
 			{
-				event.getEntityLiving().onKillCommand();
+				entity.kill();
 			}
 		}
 	}
 
-	@SubscribeEvent
-	public void sleepInBed(PlayerSleepInBedEvent event)
+	public Player.BedSleepingProblem sleepInBed(Player player, BlockPos pos)
 	{
-		if (BloodmoonHandler.INSTANCE != null && BloodmoonConfig.GENERAL.NO_SLEEP)
+		if (BloodmoonHandler.INSTANCE != null && BloodmoonConfig.GENERAL.NO_SLEEP.get())
 		{
 			if (Bloodmoon.proxy.isBloodmoon())
 			{
-				event.setResult(SleepResult.OTHER_PROBLEM);
-				event.getEntityPlayer().sendMessage(new TextComponentTranslation("text.bloodmoon.nosleep").setStyle(new Style().setColor(TextFormatting.RED)));
+				player.displayClientMessage(Component.translatable("text.bloodmoon.nosleep").withStyle(ChatFormatting.RED), true);
+				return Player.BedSleepingProblem.OTHER_PROBLEM;
 			}
 		}
+
+		return null;
 	}
 
-	@SubscribeEvent
-	public void onConfigChange(OnConfigChangedEvent event)
+	@Environment(EnvType.CLIENT)
+	public void fogColor(FogEvents.ColorData event)
 	{
-		ConfigManager.sync(Reference.MOD_ID, Type.INSTANCE);
-	}
-
-	@SubscribeEvent
-	@SideOnly(Side.CLIENT)
-	public void fogColor(FogColors event)
-	{
-		if (BloodmoonConfig.APPEARANCE.BLACK_FOG && ClientBloodmoonHandler.INSTANCE.isBloodmoonActive())
+		if (BloodmoonConfig.APPEARANCE.BLACK_FOG.get() && ClientBloodmoonHandler.INSTANCE.isBloodmoonActive())
 		{
 			event.setRed(Math.max(event.getRed() - ClientBloodmoonHandler.INSTANCE.fogRemove, 0));
 			event.setGreen(Math.max(event.getGreen() - ClientBloodmoonHandler.INSTANCE.fogRemove, 0));
@@ -100,21 +109,19 @@ public class BloodmoonEventHandler
 		}
 	}
 
-	@SubscribeEvent
-	public void playerJoinedWorld(EntityJoinWorldEvent event)
+	public void playerJoinedWorld(ServerPlayer player)
 	{
-		if (BloodmoonHandler.INSTANCE != null && !event.getWorld().isRemote)
+		if (BloodmoonHandler.INSTANCE != null && !player.level.isClientSide())
 		{
-			BloodmoonHandler.INSTANCE.playerJoinedWorld(event);
+			BloodmoonHandler.INSTANCE.playerJoinedWorld(player);
 		}
 	}
 
-	@SubscribeEvent
-	public void endWorldTick(TickEvent.WorldTickEvent event)
+	public void endWorldTick(ServerLevel level)
 	{
 		if (BloodmoonHandler.INSTANCE != null)
 		{
-			BloodmoonHandler.INSTANCE.endWorldTick(event);
+			BloodmoonHandler.INSTANCE.endWorldTick(level);
 		}
 	}
 }

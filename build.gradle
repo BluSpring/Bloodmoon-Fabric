@@ -1,43 +1,18 @@
 // For those who want the bleeding edge
-buildscript {
-    repositories {
-        jcenter()
-        maven {
-            name = "forge"
-            url = "http://files.minecraftforge.net/maven"
-        }
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-    }
+plugins {
+    id 'fabric-loom' version '1.2-SNAPSHOT'
+    id 'maven-publish'
 }
-apply plugin: 'net.minecraftforge.gradle.forge'
 
 version = "1.5.2"
 group= "lumien.bloodmoon" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 
-sourceCompatibility = targetCompatibility = "1.6" // Need this here so eclipse task generates correctly.
+sourceCompatibility = targetCompatibility = "17" // Need this here so eclipse task generates correctly.
 compileJava {
-    sourceCompatibility = targetCompatibility = "1.6"
+    sourceCompatibility = targetCompatibility = "17"
 }
 
-minecraft {
-    version = "1.12.2-14.23.0.2517"
-    runDir = "run"
-	
-	replaceIn "lib/Reference.java"
-    replace "@VERSION@",project.version
-	replace "@FINGERPRINT@", project.signSHA1
-    
-    // the mappings can be changed at any time, and must be in the following format.
-    // snapshot_YYYYMMDD   snapshot are built nightly.
-    // stable_#            stables are built at the discretion of the MCP team.
-    // Use non-default mappings at your own risk. they may not allways work.
-    // simply re-run your setup task after changing the mappings to update your workspace.
-    mappings = "snapshot_20171003"
-}
-
-archivesBaseName = "Bloodmoon-MC" + minecraft.version
+archivesBaseName = "Bloodmoon-MC1.19.2"
 
 jar {
     manifest {
@@ -45,56 +20,133 @@ jar {
     }
 }
 
+repositories {
+    maven {
+        url "https://cursemaven.com/"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = 'ParchmentMC'
+        url = 'https://maven.parchmentmc.org'
+    }
+
+    mavenCentral()
+    maven {
+        name = "Fuzs Mod Resources"
+        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
+    }
+
+    maven {
+        name = "DevOS One"
+        url = ("https://mvn.devos.one/snapshots/")
+    }
+
+    maven {
+        name = "JitPack"
+        url = ("https://jitpack.io/")
+    }
+
+    maven {
+        name = "Cafeteria Dev"
+        url = ("https://maven.cafeteria.dev/releases/")
+        content {
+            includeGroup("dev.cafeteria")
+        }
+    }
+
+    maven {
+        name = "JamiesWhiteShirt Dev"
+        url = ("https://maven.jamieswhiteshirt.com/libs-release")
+        content {
+            includeGroup("com.jamieswhiteshirt")
+        }
+    }
+
+    maven { url "https://maven.architectury.dev/" }
+    maven { url "https://maven.shedaniel.me/" }
+    maven { url "https://maven.terraformersmc.com/releases/" }
+}
+
 dependencies {
-    // you may put jars on which you depend on in ./libs
-    // or you may define them like so..
-    //compile "some.group:artifact:version:classifier"
-    //compile "some.group:artifact:version"
-      
-    // real examples
-    //compile 'com.mod-buildcraft:buildcraft:6.0.8:dev'  // adds buildcraft to the dev env
-    //compile 'com.googlecode.efficient-java-matrix-library:ejml:0.24' // adds ejml to the dev env
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.layered() {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-1.19.2:2022.11.27@zip")
+    }
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // for more info...
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    // Fabric API. This is technically optional, but you probably want it anyway.
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    modImplementation "net.minecraftforge:forgeconfigapiport-fabric:4.2.9"
 
+    implementation 'com.electronwill.night-config:core:3.6.5'
+    implementation 'com.electronwill.night-config:toml:3.6.5'
+
+    include(modImplementation("io.github.fabricators_of_create.Porting-Lib:porting-lib:2.1.875+1.19.2"))
+    include modImplementation("com.jamieswhiteshirt:reach-entity-attributes:2.3.0")
+
+    modApi "dev.architectury:architectury-fabric:6.5.85"
+    modApi "me.shedaniel.cloth:cloth-config-fabric:8.2.88"
+    modApi "com.terraformersmc:modmenu:4.2.0-beta.2"
 }
-
-processResources
-{
-    // this will ensure that this task is redone when the versions change.
+processResources {
     inputs.property "version", project.version
-    inputs.property "mcversion", project.minecraft.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    filteringCharset "UTF-8"
 
-    // replace stuff in mcmod.info, nothing else
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-                
-        // replace version and mcversion
-        expand 'version':project.version, 'mcversion':project.minecraft.version
-    }
-        
-    // copy everything else, thats not the mcmod.info
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version
     }
 }
 
-task signJar(type: SignJar, dependsOn: reobfJar) {
-
-    // Skips if the keyStore property is missing.
-    onlyIf {
-        project.hasProperty('keyStore')
+def targetJavaVersion = 17
+tasks.withType(JavaCompile).configureEach {
+    // ensure that the encoding is set to UTF-8, no matter what the system default is
+    // this fixes some edge cases with special characters not displaying correctly
+    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+    // If Javadoc is generated, this must be specified in that task too.
+    it.options.encoding = "UTF-8"
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        it.options.release = targetJavaVersion
     }
-
-    keyStore = project.keyStore
-    alias = project.keyStoreAlias
-    storePass = project.keyStorePass
-    keyPass = project.keyStoreKeyPass
-    inputFile = jar.archivePath
-    outputFile = jar.archivePath
 }
 
-// Runs this task automatically when build is ran. 
-build.dependsOn signJar
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+    archivesBaseName = project.archives_base_name
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archivesBaseName}"}
+    }
+}
+
+// configure the maven publication
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+
+    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+    repositories {
+        // Add repositories to publish to here.
+        // Notice: This block does NOT have the same function as the block in the top level.
+        // The repositories here will be used for publishing your artifact, not for
+        // retrieving dependencies.
+    }
+}

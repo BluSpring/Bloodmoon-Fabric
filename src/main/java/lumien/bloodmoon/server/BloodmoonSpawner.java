@@ -1,43 +1,45 @@
 package lumien.bloodmoon.server;
 
+import com.google.common.collect.Sets;
+import io.github.fabricators_of_create.porting_lib.event.common.LivingEntityEvents;
+import lumien.bloodmoon.config.BloodmoonConfig;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.*;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.MobSpawnSettings;
+import net.minecraft.world.level.block.BaseRailBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.world.level.levelgen.Heightmap;
+
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-
-import com.google.common.collect.Sets;
-
-import lumien.bloodmoon.Bloodmoon;
-import lumien.bloodmoon.config.BloodmoonConfig;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockRailBase;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.EntityLiving;
-import net.minecraft.entity.EntitySpawnPlacementRegistry;
-import net.minecraft.entity.EnumCreatureType;
-import net.minecraft.entity.IEntityLivingData;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.init.Blocks;
-import net.minecraft.server.management.PlayerChunkMapEntry;
-import net.minecraft.util.WeightedRandom;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldServer;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.chunk.Chunk;
 
 public final class BloodmoonSpawner
 {
 	private static final int MOB_COUNT_DIV = (int) Math.pow(17.0D, 2.0D);
 	private final Set<ChunkPos> eligibleChunksForSpawning = Sets.<ChunkPos> newHashSet();
 
+	private static boolean isNormalCube(BlockState state, Level level, BlockPos pos) {
+		return state.getMaterial().isSolid() && !state.isRedstoneConductor(level, pos) && state.getBlock().isOcclusionShapeFullBlock(state, level, pos);
+	}
+
 	/**
 	 * adds all chunks within the spawn radius of the players to
 	 * eligibleChunksForSpawning. pars: the world, hostileCreatures,
 	 * passiveCreatures. returns number of eligible chunks.
 	 */
-	public int findChunksForSpawning(WorldServer worldServerIn, boolean spawnHostileMobs, boolean spawnPeacefulMobs, boolean spawnOnSetTickRate)
+	public int findChunksForSpawning(ServerLevel worldServerIn, boolean spawnHostileMobs, boolean spawnPeacefulMobs, boolean spawnOnSetTickRate)
 	{
 		if (!spawnHostileMobs && !spawnPeacefulMobs)
 		{
@@ -48,12 +50,12 @@ public final class BloodmoonSpawner
 			this.eligibleChunksForSpawning.clear();
 			int i = 0;
 
-			for (EntityPlayer entityplayer : worldServerIn.playerEntities)
+			for (ServerPlayer entityplayer : worldServerIn.players())
 			{
 				if (!entityplayer.isSpectator())
 				{
-					int j = MathHelper.floor(entityplayer.posX / 16.0D);
-					int k = MathHelper.floor(entityplayer.posZ / 16.0D);
+					int j = Mth.floor(entityplayer.xo / 16.0D);
+					int k = Mth.floor(entityplayer.zo / 16.0D);
 					int l = 8;
 
 					for (int i1 = -l; i1 <= l; ++i1)
@@ -67,11 +69,9 @@ public final class BloodmoonSpawner
 							{
 								++i;
 
-								if (!flag && worldServerIn.getWorldBorder().contains(chunkpos))
+								if (!flag && worldServerIn.getWorldBorder().isWithinBounds(chunkpos))
 								{
-									PlayerChunkMapEntry playermanager$playerinstance = worldServerIn.getPlayerChunkMap().getEntry(chunkpos.x, chunkpos.z);
-
-									if (playermanager$playerinstance != null && playermanager$playerinstance.isSentToPlayers())
+									if (!worldServerIn.getChunkSource().chunkMap.getPlayersCloseForSpawning(chunkpos).isEmpty())
 									{
 										this.eligibleChunksForSpawning.add(chunkpos);
 									}
@@ -83,16 +83,16 @@ public final class BloodmoonSpawner
 			}
 
 			int j4 = 0;
-			BlockPos blockpos1 = worldServerIn.getSpawnPoint();
+			BlockPos blockpos1 = worldServerIn.getSharedSpawnPos();
 
-			for (EnumCreatureType enumcreaturetype : EnumCreatureType.values())
+			for (MobCategory category : MobCategory.values())
 			{
-				if ((!enumcreaturetype.getPeacefulCreature() || spawnPeacefulMobs) && (enumcreaturetype.getPeacefulCreature() || spawnHostileMobs) && (!enumcreaturetype.getAnimal() || spawnOnSetTickRate))
+				if ((!category.isFriendly() || spawnPeacefulMobs) && (category.isFriendly() || spawnHostileMobs) && (!category.isPersistent() || spawnOnSetTickRate))
 				{
-					int k4 = worldServerIn.countEntities(enumcreaturetype, true);
-					int spawnLimit = enumcreaturetype.getMaxNumberOfCreature() * i / MOB_COUNT_DIV;
+					int k4 = worldServerIn.getEntities(EntityTypeTest.forClass(Mob.class), (entity) -> entity.getType().getCategory().equals(category)).size();
+					int spawnLimit = category.getMaxInstancesPerChunk() * i / MOB_COUNT_DIV;
 
-					spawnLimit *= BloodmoonConfig.SPAWNING.SPAWN_LIMIT_MULT;
+					spawnLimit *= BloodmoonConfig.SPAWNING.SPAWN_LIMIT_MULT.get();
 
 					if (k4 <= spawnLimit)
 					{
@@ -107,9 +107,9 @@ public final class BloodmoonSpawner
 							int k1 = blockpos.getX();
 							int l1 = blockpos.getY();
 							int i2 = blockpos.getZ();
-							IBlockState iblockstate = worldServerIn.getBlockState(blockpos);
+							BlockState iblockstate = worldServerIn.getBlockState(blockpos);
 
-							if (!iblockstate.isNormalCube())
+							if (!isNormalCube(iblockstate, worldServerIn, blockpos))
 							{
 								int j2 = 0;
 
@@ -119,39 +119,48 @@ public final class BloodmoonSpawner
 									int i3 = l1;
 									int j3 = i2;
 									int k3 = 6;
-									Biome.SpawnListEntry biomegenbase$spawnlistentry = null;
-									IEntityLivingData ientitylivingdata = null;
-									int l3 = MathHelper.ceil(Math.random() * 4.0D);
+									MobSpawnSettings.SpawnerData biomegenbase$spawnlistentry = null;
+									SpawnGroupData ientitylivingdata = null;
+									int l3 = Mth.ceil(Math.random() * 4.0D);
 
 									for (int i4 = 0; i4 < l3; ++i4)
 									{
-										l2 += worldServerIn.rand.nextInt(k3) - worldServerIn.rand.nextInt(k3);
-										i3 += worldServerIn.rand.nextInt(1) - worldServerIn.rand.nextInt(1);
-										j3 += worldServerIn.rand.nextInt(k3) - worldServerIn.rand.nextInt(k3);
-										blockpos$mutableblockpos.setPos(l2, i3, j3);
+										l2 += worldServerIn.random.nextInt(k3) - worldServerIn.random.nextInt(k3);
+										i3 += worldServerIn.random.nextInt(1) - worldServerIn.random.nextInt(1);
+										j3 += worldServerIn.random.nextInt(k3) - worldServerIn.random.nextInt(k3);
+										blockpos$mutableblockpos.set(l2, i3, j3);
 										float f = (float) l2 + 0.5F;
 										float f1 = (float) j3 + 0.5F;
 
-										if (worldServerIn.canBlockSeeSky(blockpos$mutableblockpos) && !worldServerIn.isAnyPlayerWithinRangeAt((double) f, (double) i3, (double) f1, BloodmoonConfig.SPAWNING.SPAWN_RANGE) && blockpos1.distanceSq((double) f, (double) i3, (double) f1) >= (BloodmoonConfig.SPAWNING.SPAWN_DISTANCE * BloodmoonConfig.SPAWNING.SPAWN_DISTANCE))
+										if (worldServerIn.canSeeSky(blockpos$mutableblockpos) && !worldServerIn.hasNearbyAlivePlayer((double) f, (double) i3, (double) f1, BloodmoonConfig.SPAWNING.SPAWN_RANGE.get()) && blockpos1.distToCenterSqr((double) f, (double) i3, (double) f1) >= (BloodmoonConfig.SPAWNING.SPAWN_DISTANCE.get() * BloodmoonConfig.SPAWNING.SPAWN_DISTANCE.get()))
 										{
 											if (biomegenbase$spawnlistentry == null)
 											{
-												biomegenbase$spawnlistentry = worldServerIn.getSpawnListEntryForTypeAt(enumcreaturetype, blockpos$mutableblockpos);
+												var spawnListEntry = worldServerIn.getBiome(blockpos$mutableblockpos).value().getMobSettings().getMobs(category).getRandom(worldServerIn.random);
 
-												if (biomegenbase$spawnlistentry == null || !BloodmoonConfig.canSpawn(biomegenbase$spawnlistentry.entityClass))
+												if (spawnListEntry.isEmpty() || !BloodmoonConfig.canSpawn(spawnListEntry.get().type))
 												{
-													biomegenbase$spawnlistentry = null;
 													break;
 												}
+
+												biomegenbase$spawnlistentry = spawnListEntry.get();
 											}
 
-											if (worldServerIn.canCreatureTypeSpawnHere(enumcreaturetype, biomegenbase$spawnlistentry, blockpos$mutableblockpos) && canCreatureTypeSpawnAtLocation(EntitySpawnPlacementRegistry.getPlacementForEntity(biomegenbase$spawnlistentry.entityClass), worldServerIn, blockpos$mutableblockpos))
-											{
-												EntityLiving entityliving;
+											var spawnList = worldServerIn.getChunkSource().getGenerator().getMobsAt(worldServerIn.getBiome(blockpos$mutableblockpos), worldServerIn.structureManager(), category, blockpos$mutableblockpos);
+											if (
+													!spawnList.isEmpty() && spawnList.unwrap().contains(biomegenbase$spawnlistentry)
+													&& canCreatureTypeSpawnAtLocation(
+															SpawnPlacements
+																	.getPlacementType(biomegenbase$spawnlistentry.type),
+															worldServerIn,
+															blockpos$mutableblockpos
+													)
+											) {
+												Mob entityliving;
 
 												try
 												{
-													entityliving = (EntityLiving) biomegenbase$spawnlistentry.entityClass.getConstructor(new Class[] { World.class }).newInstance(new Object[] { worldServerIn });
+													entityliving = (Mob) biomegenbase$spawnlistentry.type.create(worldServerIn);
 												}
 												catch (Exception exception)
 												{
@@ -159,30 +168,29 @@ public final class BloodmoonSpawner
 													return j4;
 												}
 
-												entityliving.setLocationAndAngles((double) f, (double) i3, (double) f1, worldServerIn.rand.nextFloat() * 360.0F, 0.0F);
-
-												net.minecraftforge.fml.common.eventhandler.Event.Result canSpawn = net.minecraftforge.event.ForgeEventFactory.canEntitySpawn(entityliving, worldServerIn, f, i3, f1, false);
-												if (canSpawn == net.minecraftforge.fml.common.eventhandler.Event.Result.ALLOW || (canSpawn == net.minecraftforge.fml.common.eventhandler.Event.Result.DEFAULT && (entityliving.getCanSpawnHere() && entityliving.isNotColliding())))
+												entityliving.absMoveTo((double) f, (double) i3, (double) f1, worldServerIn.random.nextFloat() * 360.0F, 0.0F);
+												var canSpawn = LivingEntityEvents.CHECK_SPAWN.invoker().onCheckSpawn(entityliving, worldServerIn, f, i3, f1, null, MobSpawnType.NATURAL);
+												if (canSpawn && (entityliving.checkSpawnObstruction(worldServerIn) && entityliving.checkSpawnRules(worldServerIn, MobSpawnType.NATURAL)))
 												{
-													if (!net.minecraftforge.event.ForgeEventFactory.doSpecialSpawn(entityliving, worldServerIn, f, l3, f1))
-														ientitylivingdata = entityliving.onInitialSpawn(worldServerIn.getDifficultyForLocation(new BlockPos(entityliving)), ientitylivingdata);
+													//if (!net.minecraftforge.event.ForgeEventFactory.doSpecialSpawn(entityliving, worldServerIn, f, l3, f1))
+													//	ientitylivingdata = entityliving.onInitialSpawn(worldServerIn.getDifficultyForLocation(new BlockPos(entityliving)), ientitylivingdata);
 
-													if (entityliving.isNotColliding())
+													if (entityliving.checkSpawnObstruction(worldServerIn))
 													{
 														++j2;
-														entityliving.getEntityData().setBoolean("bloodmoonSpawned", true);
+														entityliving.getExtraCustomData().putBoolean("bloodmoonSpawned", true);
 
-														worldServerIn.spawnEntity(entityliving);
+														worldServerIn.addFreshEntity(entityliving);
 													}
 													else
 													{
-														entityliving.setDead();
+														entityliving.remove(Entity.RemovalReason.DISCARDED);
 													}
 
-													if (i2 >= net.minecraftforge.event.ForgeEventFactory.getMaxSpawnPackSize(entityliving))
-													{
-														continue label415;
-													}
+													//if (i2 >= net.minecraftforge.event.ForgeEventFactory.getMaxSpawnPackSize(entityliving))
+													//{
+													//	continue label415;
+													//}
 												}
 
 												j4 += j2;
@@ -200,41 +208,41 @@ public final class BloodmoonSpawner
 		}
 	}
 
-	protected static BlockPos getRandomChunkPosition(World worldIn, int x, int z)
+	protected static BlockPos getRandomChunkPosition(Level worldIn, int x, int z)
 	{
-		Chunk chunk = worldIn.getChunkFromChunkCoords(x, z);
-		int i = x * 16 + worldIn.rand.nextInt(16);
-		int j = z * 16 + worldIn.rand.nextInt(16);
-		int k = MathHelper.roundUp(chunk.getHeight(new BlockPos(i, 0, j)) + 1, 16);
-		int l = worldIn.rand.nextInt(k > 0 ? k : chunk.getTopFilledSegment() + 16 - 1);
+		LevelChunk chunk = worldIn.getChunk(x, z);
+		int i = x * 16 + worldIn.random.nextInt(16);
+		int j = z * 16 + worldIn.random.nextInt(16);
+		int k = Mth.roundToward(chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, i, j) + 1, 16);
+		int l = worldIn.random.nextInt(k > 0 ? k : chunk.getHighestSectionPosition() + 16 - 1);
 		return new BlockPos(i, l, j);
 	}
 
-	public static boolean func_185331_a(IBlockState p_185331_0_)
+	public static boolean func_185331_a(BlockState p_185331_0_, Level level, BlockPos pos)
 	{
-		return p_185331_0_.isBlockNormalCube() ? false : (p_185331_0_.canProvidePower() ? false : (p_185331_0_.getMaterial().isLiquid() ? false : !BlockRailBase.isRailBlock(p_185331_0_)));
+		return (!p_185331_0_.getMaterial().blocksMotion() || !p_185331_0_.getBlock().isCollisionShapeFullBlock(p_185331_0_, level, pos)) && (p_185331_0_.isSignalSource() ? false : (p_185331_0_.getMaterial().isLiquid() ? false : !BaseRailBlock.isRail(p_185331_0_)));
 	}
 
-	public static boolean canCreatureTypeSpawnAtLocation(EntityLiving.SpawnPlacementType spawnPlacementTypeIn, World worldIn, BlockPos pos)
+	public static boolean canCreatureTypeSpawnAtLocation(SpawnPlacements.Type spawnPlacementTypeIn, Level worldIn, BlockPos pos)
 	{
-		if (!worldIn.getWorldBorder().contains(pos))
+		if (!worldIn.getWorldBorder().isWithinBounds(pos))
 		{
 			return false;
 		}
 		else
 		{
-			IBlockState iblockstate = worldIn.getBlockState(pos);
+			BlockState iblockstate = worldIn.getBlockState(pos);
 
-			if (spawnPlacementTypeIn == EntityLiving.SpawnPlacementType.IN_WATER)
+			if (spawnPlacementTypeIn == SpawnPlacements.Type.IN_WATER)
 			{
-				return iblockstate.getMaterial().isLiquid() && worldIn.getBlockState(pos.down()).getMaterial().isLiquid() && !worldIn.getBlockState(pos.up()).isNormalCube();
+				return iblockstate.getMaterial().isLiquid() && worldIn.getBlockState(pos.below()).getMaterial().isLiquid() && !isNormalCube(worldIn.getBlockState(pos.above()), worldIn, pos.above());
 			}
 			else
 			{
-				BlockPos blockpos = pos.down();
-				IBlockState state = worldIn.getBlockState(blockpos);
+				BlockPos blockpos = pos.below();
+				BlockState state = worldIn.getBlockState(blockpos);
 
-				if (!state.getBlock().canCreatureSpawn(state, worldIn, blockpos, spawnPlacementTypeIn))
+				if (!state.isFaceSturdy(worldIn, blockpos, Direction.UP))
 				{
 					return false;
 				}
@@ -242,7 +250,7 @@ public final class BloodmoonSpawner
 				{
 					Block block = worldIn.getBlockState(blockpos).getBlock();
 					boolean flag = block != Blocks.BEDROCK && block != Blocks.BARRIER;
-					return flag && func_185331_a(iblockstate) && func_185331_a(worldIn.getBlockState(pos.up()));
+					return flag && func_185331_a(iblockstate, worldIn, pos) && func_185331_a(worldIn.getBlockState(pos.above()), worldIn, pos.above());
 				}
 			}
 		}
@@ -251,17 +259,18 @@ public final class BloodmoonSpawner
 	/**
 	 * Called during chunk generation to spawn initial creatures.
 	 */
-	public static void performWorldGenSpawning(World worldIn, Biome biomeIn, int p_77191_2_, int p_77191_3_, int p_77191_4_, int p_77191_5_, Random randomIn)
+	public static void performWorldGenSpawning(Level worldIn, Biome biomeIn, int p_77191_2_, int p_77191_3_, int p_77191_4_, int p_77191_5_, Random randomIn)
 	{
-		List<Biome.SpawnListEntry> list = biomeIn.getSpawnableList(EnumCreatureType.CREATURE);
+		var randomList = biomeIn.getMobSettings().getMobs(MobCategory.CREATURE);
+		List<MobSpawnSettings.SpawnerData> list = randomList.unwrap();
 
-		if (!list.isEmpty())
+		if (!randomList.isEmpty())
 		{
-			while (randomIn.nextFloat() < biomeIn.getSpawningChance())
+			while (randomIn.nextFloat() < biomeIn.getMobSettings().getCreatureProbability())
 			{
-				Biome.SpawnListEntry biomegenbase$spawnlistentry = (Biome.SpawnListEntry) WeightedRandom.getRandomItem(worldIn.rand, list);
-				int i = biomegenbase$spawnlistentry.minGroupCount + randomIn.nextInt(1 + biomegenbase$spawnlistentry.maxGroupCount - biomegenbase$spawnlistentry.minGroupCount);
-				IEntityLivingData ientitylivingdata = null;
+				MobSpawnSettings.SpawnerData biomegenbase$spawnlistentry = randomList.getRandom(worldIn.random).get();
+				int i = biomegenbase$spawnlistentry.minCount + randomIn.nextInt(1 + biomegenbase$spawnlistentry.maxCount - biomegenbase$spawnlistentry.minCount);
+				SpawnGroupData ientitylivingdata = null;
 				int j = p_77191_2_ + randomIn.nextInt(p_77191_4_);
 				int k = p_77191_3_ + randomIn.nextInt(p_77191_5_);
 				int l = j;
@@ -273,15 +282,15 @@ public final class BloodmoonSpawner
 
 					for (int k1 = 0; !flag && k1 < 4; ++k1)
 					{
-						BlockPos blockpos = worldIn.getTopSolidOrLiquidBlock(new BlockPos(j, 0, k));
+						BlockPos blockpos = worldIn.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, new BlockPos(j, 0, k));
 
-						if (canCreatureTypeSpawnAtLocation(EntityLiving.SpawnPlacementType.ON_GROUND, worldIn, blockpos))
+						if (canCreatureTypeSpawnAtLocation(SpawnPlacements.Type.ON_GROUND, worldIn, blockpos))
 						{
-							EntityLiving entityliving;
+							Mob entityliving;
 
 							try
 							{
-								entityliving = (EntityLiving) biomegenbase$spawnlistentry.entityClass.getConstructor(new Class[] { World.class }).newInstance(new Object[] { worldIn });
+								entityliving = (Mob) biomegenbase$spawnlistentry.type.create(worldIn);
 							}
 							catch (Exception exception)
 							{
@@ -289,9 +298,9 @@ public final class BloodmoonSpawner
 								continue;
 							}
 
-							entityliving.setLocationAndAngles((double) ((float) j + 0.5F), (double) blockpos.getY(), (double) ((float) k + 0.5F), randomIn.nextFloat() * 360.0F, 0.0F);
-							worldIn.spawnEntity(entityliving);
-							ientitylivingdata = entityliving.onInitialSpawn(worldIn.getDifficultyForLocation(new BlockPos(entityliving)), ientitylivingdata);
+							entityliving.absMoveTo((double) ((float) j + 0.5F), (double) blockpos.getY(), (double) ((float) k + 0.5F), randomIn.nextFloat() * 360.0F, 0.0F);
+							worldIn.addFreshEntity(entityliving);
+							ientitylivingdata = entityliving.finalizeSpawn((ServerLevel) worldIn, worldIn.getCurrentDifficultyAt(entityliving.blockPosition()), MobSpawnType.NATURAL, ientitylivingdata, null);
 							flag = true;
 						}
 

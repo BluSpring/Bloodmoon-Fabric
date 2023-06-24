@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "bloodmoon",
+  "version": "${version}",
+  "name": "Bloodmoon",
+  "description": "Adds the bloodmoon from terraria to minecraft",
+  "authors": [
+    "lumien",
+    "BluSpring"
+  ],
+  "contact": {
+    "repo": "https://github.com/BluSpring/EpicSiegeMod"
+  },
+  "license": "MIT",
+  "icon": "title.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "lumien.bloodmoon.client.ClientBloodmoonHandler"
+    ],
+    "main": [
+      "lumien.bloodmoon.Bloodmoon"
+    ]
+  },
+  "mixins": [
+    "Bloodmoon.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

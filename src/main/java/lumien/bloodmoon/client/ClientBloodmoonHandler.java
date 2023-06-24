@@ -1,18 +1,19 @@
 package lumien.bloodmoon.client;
 
+import lumien.bloodmoon.config.BloodmoonConfig;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL11;
 
-import lumien.bloodmoon.config.BloodmoonConfig;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.multiplayer.WorldClient;
-import net.minecraft.util.math.Vec3d;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-
-public class ClientBloodmoonHandler
+public class ClientBloodmoonHandler implements ClientModInitializer
 {
 	public static ClientBloodmoonHandler INSTANCE = new ClientBloodmoonHandler();
+
+	public void onInitializeClient() {}
 
 	boolean bloodmoonActive;
 
@@ -31,6 +32,9 @@ public class ClientBloodmoonHandler
 	public ClientBloodmoonHandler()
 	{
 		bloodmoonActive = false;
+		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
+			clientTick();
+		});
 	}
 
 	public boolean isBloodmoonActive()
@@ -45,17 +49,17 @@ public class ClientBloodmoonHandler
 
 	public void moonColorHook()
 	{
-		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_MOON)
+		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_MOON.get())
 		{
 			GL11.glColor3f(0.8f, 0, 0);
 		}
 	}
 
-	public Vec3d skyColorHook(Vec3d color)
+	public Vec3 skyColorHook(Vec3 color)
 	{
-		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_SKY)
+		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_SKY.get())
 		{
-			color.x += INSTANCE.skyColorAdd;
+			color.add(INSTANCE.skyColorAdd, 0, 0);
 		}
 		
 		return color;
@@ -68,7 +72,7 @@ public class ClientBloodmoonHandler
 
 	public int manipulateGreen(int position, int originalValue)
 	{
-		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_LIGHT)
+		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_LIGHT.get())
 		{
 			int height = position / 16;
 
@@ -82,12 +86,10 @@ public class ClientBloodmoonHandler
 		return originalValue;
 	}
 
-	public int manipulateBlue(int position, int originalValue)
+	public int manipulateBlue(int height, int originalValue)
 	{
-		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_LIGHT)
+		if (isBloodmoonActive() && BloodmoonConfig.APPEARANCE.RED_LIGHT.get())
 		{
-			int height = position / 16;
-
 			if (height < 16)
 			{
 				float mod = 1F / 16F * height;
@@ -98,16 +100,15 @@ public class ClientBloodmoonHandler
 		return originalValue;
 	}
 
-	@SubscribeEvent
-	public void clientTick(TickEvent.ClientTickEvent event)
+	public void clientTick()
 	{
 		if (isBloodmoonActive())
 		{
-			WorldClient world = Minecraft.getMinecraft().world;
-			EntityPlayerSP player = Minecraft.getMinecraft().player;
+			ClientLevel world = Minecraft.getInstance().level;
+			LocalPlayer player = Minecraft.getInstance().player;
 			if (world != null && player != null)
 			{
-				float difTime = (int) (world.getWorldTime() % 24000) - 12000;
+				float difTime = (int) (world.getDayTime() % 24000) - 12000;
 				sin = Math.sin(difTime * sinMax);
 				lightSub = (float) (sin * 150f);
 				skyColorAdd = (float) (sin * 0.1f);
@@ -115,7 +116,7 @@ public class ClientBloodmoonHandler
 
 				fogRemove = (float) (sin * d * 6000f);
 
-				if (world.provider.getDimension() != 0)
+				if (world.dimensionType().hasFixedTime())
 				{
 					bloodmoonActive = false;
 				}
