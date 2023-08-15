@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 import lumien.bloodmoon.client.ClientBloodmoonHandler;
 import me.pepperbell.simplenetworking.S2CPacket;
 import me.pepperbell.simplenetworking.SimpleChannel;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -39,6 +41,7 @@ public class MessageBloodmoonStatus implements S2CPacket
 		return this;
 	}
 
+	@Environment(EnvType.CLIENT)
 	@Override
 	public void handle(Minecraft client, ClientPacketListener listener, PacketSender responseSender, SimpleChannel channel) {
 		client.doRunTask(() -> {
