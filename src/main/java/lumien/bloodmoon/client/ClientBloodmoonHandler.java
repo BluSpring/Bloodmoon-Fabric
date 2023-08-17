@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import lumien.bloodmoon.config.BloodmoonConfig;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -35,6 +36,11 @@ public class ClientBloodmoonHandler implements ClientModInitializer
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
 			clientTick();
 		});
+		ClientPlayConnectionEvents.DISCONNECT.register(((handler, client) -> {
+			// force reset the colours when leaving
+			setBloodmoon(false);
+			RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+		}));
 	}
 
 	public boolean isBloodmoonActive()

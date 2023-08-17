@@ -67,10 +67,10 @@ public class BloodmoonEventHandler
 	{
 		if (!target.level.isClientSide)
 		{
-			return source != DamageSource.OUT_OF_WORLD || !target.getExtraCustomData().getBoolean("bloodmoonSpawned");
+			return !(source != DamageSource.OUT_OF_WORLD || !target.getExtraCustomData().getBoolean("bloodmoonSpawned"));
 		}
 
-		return true;
+		return false;
 	}
 
 	public void livingUpdate(LivingEntity entity)
