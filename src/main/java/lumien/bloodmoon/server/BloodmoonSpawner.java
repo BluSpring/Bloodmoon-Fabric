@@ -11,6 +11,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.block.BaseRailBlock;
@@ -231,6 +232,9 @@ public final class BloodmoonSpawner
 		}
 		else
 		{
+			if (worldIn.getBrightness(LightLayer.BLOCK, pos) > worldIn.random.nextInt(4))
+				return false;
+
 			BlockState iblockstate = worldIn.getBlockState(pos);
 
 			if (spawnPlacementTypeIn == SpawnPlacements.Type.IN_WATER)
