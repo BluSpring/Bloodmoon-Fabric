@@ -22,8 +22,6 @@ public class BloodmoonHandler extends SavedData
 	boolean bloodMoon;
 	boolean forceBloodMoon;
 
-	int nightCounter;
-
 	public BloodmoonHandler()
 	{
 		super();
@@ -76,20 +74,11 @@ public class BloodmoonHandler extends SavedData
 				{
 					if (time == 12000)
 					{
-						if (BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0)
-						{
-							nightCounter--;
-
-							if (nightCounter < 0)
-							{
-								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT.get();
-							}
-
-							this.setDirty();
-						}
-
-						if (forceBloodMoon || Math.random() < BloodmoonConfig.SCHEDULE.CHANCE.get() || (BloodmoonConfig.SCHEDULE.FULLMOON.get() && world.getMoonBrightness() == 1.0F) || (BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0 && nightCounter == 0))
-						{
+						if (forceBloodMoon ||
+								Math.random() < BloodmoonConfig.SCHEDULE.CHANCE.get() ||
+								(BloodmoonConfig.SCHEDULE.FULLMOON.get() && world.getMoonBrightness() == 1.0F) ||
+								(BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0 && world.getDayTime() % (24_000L * BloodmoonConfig.SCHEDULE.NTH_NIGHT.get()) == 0)
+						) {
 							forceBloodMoon = false;
 							setBloodmoon(true, world);
 
@@ -99,12 +88,6 @@ public class BloodmoonHandler extends SavedData
 								{
 									player.sendSystemMessage(Component.translatable("text.bloodmoon.notify", new Object[0]).withStyle(ChatFormatting.RED), true);
 								}
-							}
-
-							if (nightCounter == 0 && BloodmoonConfig.SCHEDULE.NTH_NIGHT.get() != 0)
-							{
-								nightCounter = BloodmoonConfig.SCHEDULE.NTH_NIGHT.get();
-								this.setDirty();
 							}
 						}
 					}
@@ -144,7 +127,6 @@ public class BloodmoonHandler extends SavedData
 		var handler = new BloodmoonHandler();
 		handler.bloodMoon = nbt.getBoolean("bloodMoon");
 		handler.forceBloodMoon = nbt.getBoolean("forceBloodMoon");
-		handler.nightCounter = nbt.getInt("nightCounter");
 		return handler;
 	}
 
@@ -153,7 +135,6 @@ public class BloodmoonHandler extends SavedData
 	{
 		nbt.putBoolean("bloodMoon", bloodMoon);
 		nbt.putBoolean("forceBloodMoon", forceBloodMoon);
-		nbt.putInt("nightCounter", nightCounter);
 
 		return nbt;
 	}
