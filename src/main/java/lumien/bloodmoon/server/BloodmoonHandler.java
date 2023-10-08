@@ -42,10 +42,7 @@ public class BloodmoonHandler extends SavedData
 	{
 		if (!player.level.isClientSide())
 		{
-			if (bloodMoon)
-			{
-				PacketHandler.INSTANCE.sendToClient(new MessageBloodmoonStatus(bloodMoon), player);
-			}
+			PacketHandler.INSTANCE.sendToClient(new MessageBloodmoonStatus(bloodMoon), player);
 		}
 	}
 

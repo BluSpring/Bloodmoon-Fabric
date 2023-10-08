@@ -36,6 +36,7 @@ public class BloodmoonEventHandler
 		LivingEntityEvents.TICK.register(this::livingUpdate);
 		EntitySleepEvents.ALLOW_SLEEPING.register(this::sleepInBed);
 		PlayerEvent.PLAYER_JOIN.register(this::playerJoinedWorld);
+		PlayerEvent.PLAYER_RESPAWN.register(this::playerRespawn);
 		TickEvent.SERVER_LEVEL_POST.register(this::endWorldTick);
 
 		if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
@@ -106,6 +107,13 @@ public class BloodmoonEventHandler
 			event.setRed(Math.max(event.getRed() - ClientBloodmoonHandler.INSTANCE.fogRemove, 0));
 			event.setGreen(Math.max(event.getGreen() - ClientBloodmoonHandler.INSTANCE.fogRemove, 0));
 			event.setBlue(Math.max(event.getBlue() - ClientBloodmoonHandler.INSTANCE.fogRemove, 0));
+		}
+	}
+
+	public void playerRespawn(ServerPlayer player, boolean conqueredEnd) {
+		if (BloodmoonHandler.INSTANCE != null && !player.level.isClientSide())
+		{
+			BloodmoonHandler.INSTANCE.playerJoinedWorld(player);
 		}
 	}
 
